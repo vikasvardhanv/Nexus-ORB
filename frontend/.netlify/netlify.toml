@@ -1,0 +1,44 @@
+redirectsOrigin = "config"
+plugins = []
+headers = []
+
+[dev]
+command = "npm run dev"
+port = 5173.0
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "/Users/vikashvardhan/IdeaProjects/ProjectNexusAI/orb_deploy/frontend/dist"
+publishOrigin = "config"
+commandOrigin = "config"
+base = "/Users/vikashvardhan/IdeaProjects/ProjectNexusAI/orb_deploy/frontend"
+command = "npm run build"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
