@@ -1,0 +1,11 @@
+alpaca-py
+fastapi
+uvicorn
+streamlit
+pandas
+numpy
+python-dotenv
+requests
+framer-motion
+lucide-react
+framer-motion

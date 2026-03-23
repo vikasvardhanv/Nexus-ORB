@@ -1,15 +1,16 @@
 /* index.css - Premium Nebula Design System */
+
 :root {
-  --bg-primary: #0a0c10;
-  --bg-secondary: #14181f;
-  --accent-primary: #00f2ff; /* Cyber Cyan */
-  --accent-secondary: #7000ff; /* Electric Violet */
-  --text-primary: #ffffff;
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --accent-primary: #22d3ee; /* Cyber Cyan */
+  --accent-secondary: #6366f1; /* Indigo */
+  --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --success: #00ff9d;
-  --danger: #ff4d4d;
-  --glass: rgba(20, 24, 31, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --success: #10b981;
+  --danger: #ef4444;
+  --glass: rgba(15, 23, 42, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
 }
 
 * {
@@ -19,176 +20,115 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Background Effects */
-.nebula-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: -1;
-  overflow: hidden;
+/* Custom Scrollbar Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-.nebula-blob {
-  position: absolute;
-  filter: blur(80px);
-  opacity: 0.15;
-  border-radius: 50%;
-  animation: float 20s infinite alternate;
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
 }
-
-.blob-1 {
-  width: 500px;
-  height: 500px;
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--accent-primary);
-  top: -100px;
-  right: -100px;
 }
 
-.blob-2 {
-  width: 600px;
-  height: 600px;
-  background: var(--accent-secondary);
-  bottom: -200px;
-  left: -200px;
-  animation-delay: -5s;
+/* Terminal Specific Scrollbar */
+.custom-terminal::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-terminal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-terminal::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.1);
+  border-radius: 4px;
 }
 
-@keyframes float {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(50px, 100px) scale(1.1); }
+/* Animations */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
 }
 
-/* Glassmorphism Classes */
+.animate-pulse-slow {
+  animation: pulse-slow 8s infinite ease-in-out;
+}
+
+/* Glassmorphism */
 .glass-panel {
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  background: var(--glass) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.02) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .glass-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-borderColor: var(--accent-primary);
-  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(34, 211, 238, 0.3) !important;
+  transform: translateY(-4px) scale(1.02) !important;
 }
 
 /* Buttons */
 .btn-premium {
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: none;
-  font-size: 14px;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.75rem !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em !important;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  color: #000;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) !important;
+  color: #020617 !important;
+  box-shadow: 0 10px 20px -10px rgba(34, 211, 238, 0.5) !important;
 }
 
 .btn-primary:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+  transform: scale(1.02) !important;
+  filter: brightness(1.1) !important;
+  box-shadow: 0 15px 30px -10px rgba(34, 211, 238, 0.6) !important;
 }
 
-.btn-outline {
-  background: transparent;
-  color: var(--text-primary);
-  border: 1px solid var(--glass-border);
+.btn-primary:active {
+  transform: scale(0.98) !important;
 }
 
-.btn-outline:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-/* Container */
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-/* Typography */
-h1 {
-  font-size: clamp(2.5rem, 5vw, 4.5rem);
-  font-weight: 800;
-  line-height: 1.1;
-  background: linear-gradient(to right, #fff, #94a3b8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.accent-text {
-  background: linear-gradient(to right, var(--accent-primary), #fff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-primary);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--bg-secondary);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-primary);
-}
-
-/* Terminal Styles */
+/* Terminal Component Fixes */
 .terminal-window {
-  width: 100%;
-  border-radius: 12px;
-  overflow: hidden;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: 'JetBrains Mono', monospace;
 }
 
-.terminal-header {
-  background: #1a1e26;
-  padding: 10px 15px;
-  display: flex;
-  gap: 8px;
-}
-
-.dot { width: 10px; height: 10px; border-radius: 50%; }
-.dot-red { background: #ff5f56; }
-.dot-yellow { background: #ffbd2e; }
-.dot-green { background: #27c93f; }
-
-.terminal-body {
-  padding: 20px;
-  background: #0e1117;
-  color: var(--success);
-  min-height: 300px;
-  max-height: 500px;
-  overflow-y: auto;
+.custom-terminal {
+  scrollbar-gutter: stable;
 }
