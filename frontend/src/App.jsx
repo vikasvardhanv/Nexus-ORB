@@ -114,12 +114,14 @@ export default function App() {
     }
   }
 
-  // ─── Sync Watchlist when Broker changes ───
   useEffect(() => {
-    if (phase === 'SETUP' || phase === 'VALIDATED') {
-      setUserWatchlist(creds.broker === 'alpaca' ? WATCHLIST : CRYPTO_WATCHLIST)
+    if (phase === 'SETUP' || phase === 'VALIDATED' || phase === 'RUNNING') {
+      const defaultList = creds.broker === 'alpaca' ? WATCHLIST : CRYPTO_WATCHLIST;
+      setUserWatchlist(defaultList);
+      // Force clear old market data so we don't see "sticky" symbols from the previous broker
+      setMarketData([]);
     }
-  }, [creds.broker, phase])
+  }, [creds.broker]) // Only trigger on broker change to avoid wiping user additions
 
   // ─── Fetch Market Snapshots ───
   const fetchMarketData = useCallback(async () => {
