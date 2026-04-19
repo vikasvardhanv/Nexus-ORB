@@ -17,7 +17,8 @@ const ALPACA_URLS = {
 
 const WATCHLIST = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'META', 'MSFT']
 const CRYPTO_WATCHLIST = ['BTCUSD', 'ETHUSD', 'SOLUSD', 'XRPUSD', 'DOGEUSD', 'ADAUSD']
-const API_BASE = import.meta.env.VITE_API_URL || 'https://vikasvardhanv--nexus-orb-trader-run-bridge-api.modal.run'
+const API_BASE = import.meta.env.VITE_API_URL || 'https://resumetailorj--nexus-orb-trader-run-bridge-api.modal.run'
+
 
 
 

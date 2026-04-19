@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://vikasvardhanv--nexus-orb-trader-run-bridge-api.modal.run',
+        target: 'https://resumetailorj--nexus-orb-trader-run-bridge-api.modal.run',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
