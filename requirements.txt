@@ -6,6 +6,7 @@ pandas
 numpy
 python-dotenv
 requests
+pybit
 framer-motion
 lucide-react
 framer-motion

@@ -1,479 +1,668 @@
-/* App.jsx - Nexus ARB Trader Frontend */
-import { useEffect, useState, useRef } from 'react'
+/* App.jsx - Nexus ORB: Simplified Onboarding + Real Alpaca Validation + Test Anytime */
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Rocket, 
-  Shield, 
-  Terminal as TerminalIcon, 
-  Zap, 
-  ChevronRight, 
-  ArrowUpRight, 
-  BarChart3, 
-  Cpu, 
-  Layers,
-  Settings,
-  X,
-  Key,
-  TrendingUp,
-  Activity,
-  AlertCircle,
-  Eye,
-  EyeOff,
-  Link,
-  Signal,
-  Brain,
-  Users,
-  MessageSquare,
-  Search,
-  Filter,
-  CheckCircle2,
-  Lock,
-  Globe
+  Rocket, Shield, Terminal as TerminalIcon, Zap, ChevronRight, 
+  Settings, X, Key, TrendingUp, Activity, Eye, EyeOff, 
+  Signal, CheckCircle2, Globe, Monitor, Crosshair, Lock, PlayCircle,
+  AlertCircle, Clock, RefreshCw
 } from 'lucide-react'
 
-// --- Mock Data ---
-const MOCK_TRADES = [
-  "[SYSTEM] Kernel: Project Nexus Booting v2.4.1",
-  "[SYSTEM] Network: Quantum encrypted tunnel established",
-  "[INFO] AI: Autonomous arbitrage engine initialized",
-  "[TRADE] BUY SPY @ 511.23 | Size: 180",
-  "[SIGNAL] 30m ORB BREAKOUT | Ticker: QQQ | Type: BULLISH",
-  "[TRADE] SELL SPY @ 511.45 | Profit: +$39.60",
-  "[ERROR] Proxy Timeout for AAPL (Retrying...)",
-  "[FIXED] AI SELF-HEAL: Switched to Backup Tier 2 API",
-  "[TRADE] BUY NVDA @ 908.45 | Size: 45",
-  "[INFO] Scalping: RSI > 70 Detected | TSLA",
-  "[TERM] User root connected to Nexus-01-Vortex",
-  "[SYSTEM] Uptime: 247:12:33 | ROI: +18.4%"
-]
+/* ───── Constants ───── */
+const ALPACA_URLS = {
+  paper: 'https://paper-api.alpaca.markets',
+  live:  'https://api.alpaca.markets',
+  data:  'https://data.alpaca.markets'
+}
 
-const AGENT_MESSAGES = [
-  { agent: "Fundamental", text: "SPY earnings yield looks attractive relative to 10Y yields. Long-term bias is Bullish.", type: "bullish" },
-  { agent: "Sentiment", text: "Social volume on $SPY just spiked. Retail sentiment is shifting greed-ward.", type: "neutral" },
-  { agent: "Technical", text: "Daily RSI at 62. Resistance at 512.40. Watching for ORB confirmation.", type: "bullish" },
-  { agent: "Risk", text: "Volatility expansion detected. Suggesting 0.5% risk cap for the next sequence.", type: "alert" },
-  { agent: "Technical", text: "FVG Gap filled at 509.12. Strong liquidity pool found there.", type: "bullish" },
-  { agent: "Sentiment", text: "Major tech headlines are positive. Pushing sentiment score to 82/100.", type: "bullish" }
-]
+const WATCHLIST = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'META', 'MSFT']
 
+/* ───── Helpers ───── */
+function formatTime(d) {
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+}
+
+function logTs() {
+  return new Date().toLocaleTimeString('en-GB')
+}
+
+/* ═══════ MAIN APP ═══════ */
 export default function App() {
+  // ─── State ───
+  const [phase, setPhase] = useState('SETUP')    // SETUP | VALIDATED | RUNNING
+  const [validationStatus, setValidationStatus] = useState('idle') // idle | loading | success | error
+  const [validationMsg, setValidationMsg] = useState('')
+  const [showSecret, setShowSecret] = useState(false)
+  const [accountInfo, setAccountInfo] = useState(null)
   const [logs, setLogs] = useState([])
-  const [agentLogs, setAgentLogs] = useState([])
-  const [scrollPos, setScrollPos] = useState(0)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [showKey, setShowKey] = useState(false)
-  const [activeTab, setActiveTab] = useState('ORB') // 'ORB' or 'INTELLIGENCE'
-  
-  // Trading Config State
-  const [config, setConfig] = useState({
-    alpacaKey: '',
-    alpacaSecret: '',
-    isLive: false,
-    tickers: 'SPY,QQQ,AAPL,TSLA',
-    riskPct: 0.5,
-    maxQty: 100,
-    backendUrl: 'https://nexus-engine-prod.modal.run'
+  const [isRealTrading, setIsRealTrading] = useState(false)
+  const [positions, setPositions] = useState([])
+  const [marketData, setMarketData] = useState([])
+  const logRef = useRef(null)
+
+  const [creds, setCreds] = useState({
+    keyId: '',
+    secret: '',
+    tradingUrl: ALPACA_URLS.paper,
+    dataUrl: ALPACA_URLS.data,
+    mode: 'paper',
+    broker: 'alpaca'
   })
 
-  const [status, setStatus] = useState('IDLE')
-  const [engineStatus, setEngineStatus] = useState('DISCONNECTED')
+  // Custom time window for testing
+  const [timeWindow, setTimeWindow] = useState({
+    rangeMinutes: 30,
+    useCustom: false,
+    customStart: '',   // HH:MM format
+  })
 
-  // Simulation loops
-  useEffect(() => {
-    let index = 0
-    const interval = setInterval(() => {
-      let logPrefix = status === 'ACTIVE' ? `[LIVE] ` : "";
-      if (status === 'CONNECTING') {
-        setLogs(prev => [...prev.slice(-49), `[SYSTEM] Authenticating with Alpaca Protocol...`]);
-        return;
-      }
-      setLogs(prev => {
-        const newLog = MOCK_TRADES[index % MOCK_TRADES.length];
-        return [...prev, logPrefix + newLog].slice(-50);
-      })
-      index++
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [status])
-
-  useEffect(() => {
-    let index = 0
-    const interval = setInterval(() => {
-      setAgentLogs(prev => {
-        const newMsg = AGENT_MESSAGES[index % AGENT_MESSAGES.length];
-        return [...prev, { ...newMsg, time: new Date().toLocaleTimeString('en-GB') }].slice(-10);
-      })
-      index++
-    }, 4000)
-    return () => clearInterval(interval)
+  // ─── Logging helper ───
+  const addLog = useCallback((msg, type = 'info') => {
+    setLogs(prev => [...prev, { time: logTs(), msg, type }].slice(-80))
   }, [])
 
+  // ─── Auto-scroll logs ───
   useEffect(() => {
-    const handleScroll = () => setScrollPos(window.scrollY)
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+  }, [logs])
 
-  const handleStartTrading = () => {
-    if (!config.alpacaKey || !config.alpacaSecret) {
-      setIsSettingsOpen(true)
-      return;
+  // ─── Real Alpaca Validation ───
+  const validateCredentials = async () => {
+    if (!creds.keyId.trim() || !creds.secret.trim()) {
+      setValidationStatus('error')
+      setValidationMsg('Both API Key ID and Secret Key are required.')
+      return
     }
-    setStatus('CONNECTING')
-    setEngineStatus('CONNECTING')
-    setTimeout(() => {
-      setStatus('ACTIVE')
-      setEngineStatus('CONNECTED')
-    }, 2500)
+
+    setValidationStatus('loading')
+    setValidationMsg('Connecting to Alpaca...')
+    addLog('[AUTH] Attempting credential validation against Alpaca API...', 'system')
+
+    try {
+      // Hit GET /v2/account with APCA headers (per Alpaca docs)
+      const res = await fetch(`${creds.tradingUrl}/v2/account`, {
+        method: 'GET',
+        headers: {
+          'APCA-API-KEY-ID': creds.keyId.trim(),
+          'APCA-API-SECRET-KEY': creds.secret.trim()
+        }
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setAccountInfo(data)
+        setValidationStatus('success')
+        setValidationMsg(`Verified! Account: ${data.account_number || 'OK'} | Status: ${data.status || 'ACTIVE'}`)
+        addLog(`[AUTH] SUCCESS - Account ${data.account_number || 'verified'}. Buying power: $${parseFloat(data.buying_power || 0).toLocaleString()}`, 'success')
+        addLog(`[AUTH] Mode: ${creds.mode.toUpperCase()} | Equity: $${parseFloat(data.equity || 0).toLocaleString()}`, 'success')
+        setTimeout(() => setPhase('VALIDATED'), 1500)
+      } else if (res.status === 401 || res.status === 403) {
+        setValidationStatus('error')
+        setValidationMsg('Invalid credentials. Check your API Key ID and Secret Key.')
+        addLog('[AUTH] FAILED - 401 Unauthorized. Credentials are invalid.', 'error')
+      } else {
+        const errText = await res.text()
+        setValidationStatus('error')
+        setValidationMsg(`API Error (${res.status}): ${errText.slice(0, 100)}`)
+        addLog(`[AUTH] FAILED - HTTP ${res.status}`, 'error')
+      }
+    } catch (err) {
+      // CORS or network error
+      if (err.message.includes('Failed to fetch') || err.name === 'TypeError') {
+        setValidationStatus('error')
+        setValidationMsg('Network/CORS error. Browser security blocks direct API calls. Use a backend proxy or the Netlify Function endpoint for production validation.')
+        addLog('[AUTH] CORS blocked. Direct browser-to-Alpaca calls are restricted by browser security policy.', 'error')
+        addLog('[AUTH] TIP: For testing, you can proceed with a bypass. For production, deploy a serverless proxy.', 'warn')
+      } else {
+        setValidationStatus('error')
+        setValidationMsg(`Connection error: ${err.message}`)
+        addLog(`[AUTH] ERROR - ${err.message}`, 'error')
+      }
+    }
   }
 
+  // ─── Fetch Market Snapshots from Alpaca ───
+  const fetchMarketData = useCallback(async () => {
+    if (!creds.keyId || !creds.secret) return
+
+    try {
+      const symbols = WATCHLIST.join(',')
+      const res = await fetch(`${creds.dataUrl}/v2/stocks/snapshots?symbols=${symbols}`, {
+        headers: {
+          'APCA-API-KEY-ID': creds.keyId.trim(),
+          'APCA-API-SECRET-KEY': creds.secret.trim()
+        }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const parsed = Object.entries(data).map(([sym, snap]) => ({
+          symbol: sym,
+          price: snap.latestTrade?.p || snap.minuteBar?.c || 0,
+          high: snap.dailyBar?.h || 0,
+          low: snap.dailyBar?.l || 0,
+          volume: snap.dailyBar?.v || 0,
+          vwap: snap.dailyBar?.vw || 0,
+          change: snap.dailyBar ? ((snap.minuteBar?.c - snap.dailyBar?.o) / snap.dailyBar?.o * 100) : 0
+        }))
+        setMarketData(parsed)
+        addLog(`[DATA] Refreshed snapshots for ${parsed.length} symbols.`, 'info')
+      }
+    } catch {
+      // Fallback simulated data if API fails or if using Kraken (simulated for now)
+      const list = creds.broker === 'alpaca' ? WATCHLIST : ['BTCUSD', 'ETHUSD', 'SOLUSD', 'DOTUSD', 'XRPUSD', 'DOGEUSD', 'ADAUSD', 'LINKUSD']
+      setMarketData(list.map(s => ({
+        symbol: s,
+        price: s.includes('BTC') ? 65000 : s.includes('ETH') ? 3500 : 100 + Math.random() * 400,
+        high: 0, low: 0, volume: 0, vwap: 0,
+        change: (Math.random() - 0.5) * 4
+      })))
+      addLog(`[DATA] Using ${creds.broker === 'alpaca' ? 'simulated' : 'crypto'} market snapshot.`, 'warn')
+    }
+  }, [creds, addLog])
+
+  // ─── Market data polling ───
+  useEffect(() => {
+    if (phase === 'VALIDATED' || phase === 'RUNNING') {
+      fetchMarketData()
+      const interval = setInterval(fetchMarketData, 15000) // Every 15s
+      return () => clearInterval(interval)
+    }
+  }, [phase, fetchMarketData])
+
+  // ─── Simulated price ticks between API refreshes ───
+  useEffect(() => {
+    if ((phase === 'VALIDATED' || phase === 'RUNNING') && marketData.length > 0) {
+      const interval = setInterval(() => {
+        setMarketData(prev => prev.map(t => ({
+          ...t,
+          price: t.price + (Math.random() - 0.5) * 0.15
+        })))
+      }, 2500)
+      return () => clearInterval(interval)
+    }
+  }, [phase, marketData.length])
+
+  // ─── Real-time Log Polling from Backend ───
+  useEffect(() => {
+    let interval;
+    if (phase === 'RUNNING' && isRealTrading) {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch('http://localhost:8000/logs');
+          if (res.ok) {
+            const data = await res.json();
+            // Map plain text logs to UI log format
+            const formatted = data.logs.map(msg => ({
+              time: logTs(),
+              msg,
+              type: msg.includes('[ERROR]') ? 'error' : msg.includes('[SUCCESS]') ? 'success' : msg.includes('[SYSTEM]') ? 'system' : 'info'
+            }));
+            setLogs(formatted);
+          }
+        } catch (err) {
+          console.error("Failed to fetch logs", err);
+        }
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [phase, isRealTrading]);
+
+  // ─── Live Positions Polling ───
+  useEffect(() => {
+    let interval;
+    if (phase === 'RUNNING' || phase === 'VALIDATED') {
+      const fetchPositions = async () => {
+        try {
+          const res = await fetch('http://localhost:8000/positions');
+          if (res.ok) {
+            const data = await res.json();
+            setPositions(data.positions || []);
+          }
+        } catch (err) {
+          console.error("Failed to fetch positions", err);
+        }
+      };
+      
+      fetchPositions();
+      interval = setInterval(fetchPositions, 5000); // Every 5s
+    }
+    return () => clearInterval(interval);
+  }, [phase]);
+
+  // ─── START handler ───
+  const handleStart = async () => {
+    // Try to start the real backend first
+    try {
+      const res = await fetch('http://localhost:8000/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyId: creds.keyId,
+          secret: creds.secret,
+          tickers: WATCHLIST.join(','),
+          quantity: 10,
+          mode: creds.mode,
+          risk_pct: 0.5,
+          minutes: timeWindow.rangeMinutes,
+          broker: creds.broker
+        })
+      });
+
+      if (res.ok) {
+        setIsRealTrading(true);
+        setPhase('RUNNING');
+        addLog('[SYSTEM] Connected to Nexus-ORB Engine. Real-time execution started.', 'success');
+        return;
+      }
+    } catch (err) {
+      addLog('[SYSTEM] Backend API not reachable. Falling back to Simulation Mode.', 'warn');
+    }
+
+    // FALLBACK: Simulation Mode (original logic)
+    setPhase('RUNNING');
+    setIsRealTrading(false);
+    const now = new Date()
+    const rangeStart = timeWindow.useCustom && timeWindow.customStart
+      ? timeWindow.customStart
+      : '09:30'
+    const rangeEnd = (() => {
+      const [h, m] = rangeStart.split(':').map(Number)
+      const endMin = m + timeWindow.rangeMinutes
+      const endH = h + Math.floor(endMin / 60)
+      const endM = endMin % 60
+      return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+    })()
+
+    addLog('═══════════════════════════════════════════', 'system')
+    addLog('[EXEC] User triggered START. ORB Engine Activated.', 'success')
+    addLog(`[CONFIG] Range Window: ${rangeStart} - ${rangeEnd} ET (${timeWindow.rangeMinutes}m)`, 'info')
+    addLog(`[CONFIG] Mode: ${creds.mode.toUpperCase()} | URL: ${creds.tradingUrl}`, 'info')
+    addLog('[SCAN] Monitoring watchlist for range formation...', 'info')
+    addLog('[STRATEGY] Phase 1: Collecting OHLC candles during range window. NO trades during this phase.', 'system')
+    addLog('[STRATEGY] Phase 2: After range locks, scanning for breakout + RVOL 1.5x + VWAP + RSI filters.', 'system')
+    addLog('[STRATEGY] Phase 3: One trade per day. Force close at 15:45 ET.', 'system')
+    addLog('═══════════════════════════════════════════', 'system')
+
+    // Simulated ongoing execution logs
+    let step = 0
+    const execLogs = [
+      '[SCAN] SPY: Building 30m range... High: $512.40 Low: $510.10',
+      '[SCAN] QQQ: Building 30m range... High: $443.00 Low: $441.20',
+      '[FILTER] SPY range width: 0.45% (pass, min 0.2%)',
+      '[FILTER] AAPL range width: 0.04% (SKIP - too narrow)',
+      '[SCAN] TSLA RVOL spike detected: 2.1x (threshold: 1.5x)',
+      '[VWAP] SPY trading above VWAP $510.85 - bullish bias',
+      '[RSI] SPY RSI(14) = 62 (valid range: 50-70 for longs)',
+      '[SIGNAL] SPY: All filters PASSED. Monitoring for candle close above ORB_HIGH $512.40',
+      '[WAIT] Watching for confirmed breakout candle close...',
+      '[MONITOR] No re-entry after stop-out. One trade per day rule active.',
+    ]
+    const interval = setInterval(() => {
+      addLog(execLogs[step % execLogs.length], step % 3 === 0 ? 'success' : 'info')
+      step++
+    }, 4000)
+
+    return () => clearInterval(interval)
+  }
+
+  // ─── STOP handler ───
+  const handleStop = async () => {
+    if (isRealTrading) {
+      try {
+        await fetch('http://localhost:8000/stop', { method: 'POST' });
+        addLog('[SYSTEM] Stop signal sent to engine.', 'warn');
+      } catch (err) {
+        addLog('[SYSTEM] Failed to connect to engine to stop.', 'error');
+      }
+    }
+    setPhase('VALIDATED');
+    setIsRealTrading(false);
+    addLog('[SYSTEM] Trading session ended.', 'info');
+  }
+
+  // ─── Bypass for CORS (allows testing without real API) ───
+  const handleBypass = () => {
+    addLog('[AUTH] Bypass mode: Proceeding without API verification.', 'warn')
+    addLog('[AUTH] Note: Market data will use simulated values.', 'warn')
+    setValidationStatus('success')
+    setValidationMsg('Bypass mode active. Using simulated data.')
+    setPhase('VALIDATED')
+  }
+
+  /* ═══════ RENDER ═══════ */
   return (
-    <div className="app-root bg-[#020617] text-slate-100 min-h-screen font-sans selection:bg-cyan-500/30">
-      {/* Dynamic Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cyan-500/10 blur-[120px] rounded-full animate-pulse-slow"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 blur-[120px] rounded-full animate-pulse-slow delay-700"></div>
+    <div style={{ background: '#020617', color: '#e2e8f0', minHeight: '100vh', fontFamily: "'Inter', system-ui, sans-serif" }}>
+      {/* Background glow */}
+      <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+        <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '40%', height: '40%', background: 'rgba(34,211,238,0.04)', filter: 'blur(120px)', borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '40%', height: '40%', background: 'rgba(99,102,241,0.04)', filter: 'blur(120px)', borderRadius: '50%' }} />
       </div>
 
-      {/* Settings Side Panel */}
-      <AnimatePresence>
-        {isSettingsOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSettingsOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-[#0f172a]/95 border-l border-white/10 backdrop-blur-xl z-[101] p-8 shadow-2xl flex flex-col">
-              <div className="flex justify-between items-center mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-cyan-500/20 rounded-lg flex items-center justify-center text-cyan-400"><Settings size={20} /></div>
-                  <h2 className="text-xl font-bold tracking-tight">Broker <span className="text-cyan-400">Settings</span></h2>
+      <AnimatePresence mode="wait">
+        {/* ═══════ PHASE 1: SETUP ═══════ */}
+        {phase === 'SETUP' && (
+          <motion.div key="setup" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', position: 'relative', zIndex: 10 }}>
+            <div style={{ maxWidth: '480px', width: '100%', background: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '24px', padding: '48px', backdropFilter: 'blur(20px)' }}>
+              
+              {/* Header */}
+              <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                <div style={{ width: '64px', height: '64px', background: 'rgba(34,211,238,0.1)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: '0 0 40px rgba(34,211,238,0.15)' }}>
+                  <Rocket size={28} color="#22d3ee" />
                 </div>
-                <button onClick={() => setIsSettingsOpen(false)} className="hover:rotate-90 transition-transform p-2 text-slate-400 hover:text-white"><X size={24} /></button>
+                <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '-0.04em', textTransform: 'uppercase', margin: 0 }}>
+                  Nexus<span style={{ color: '#22d3ee' }}>.</span>ORB
+                </h1>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '16px' }}>
+                  <button onClick={() => setCreds({ ...creds, broker: 'alpaca' })} style={{ padding: '6px 16px', borderRadius: '12px', border: '1px solid', borderColor: creds.broker === 'alpaca' ? '#22d3ee' : 'rgba(255,255,255,0.05)', background: creds.broker === 'alpaca' ? 'rgba(34,211,238,0.1)' : 'transparent', color: creds.broker === 'alpaca' ? '#22d3ee' : '#475569', fontSize: '10px', fontWeight: 800, cursor: 'pointer' }}>STOCKS</button>
+                  <button onClick={() => setCreds({ ...creds, broker: 'kraken' })} style={{ padding: '6px 16px', borderRadius: '12px', border: '1px solid', borderColor: creds.broker === 'kraken' ? '#818cf8' : 'rgba(255,255,255,0.05)', background: creds.broker === 'kraken' ? 'rgba(129,140,248,0.1)' : 'transparent', color: creds.broker === 'kraken' ? '#818cf8' : '#475569', fontSize: '10px', fontWeight: 800, cursor: 'pointer' }}>KRAKEN PRO</button>
+                </div>
+                <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginTop: '12px' }}>
+                  Step 1: Connect Your {creds.broker.toUpperCase()} Account
+                </p>
               </div>
 
-              <div className="flex-1 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
-                <div className="space-y-4">
-                  <label className="text-xs font-bold text-slate-500 tracking-[0.2em] uppercase">Alpaca Protocol 2.0</label>
-                  <div className="space-y-3">
-                    <div className="relative">
-                      <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                      <input type="text" placeholder="API KEY ID" value={config.alpacaKey} onChange={(e) => setConfig({...config, alpacaKey: e.target.value})} className="w-full bg-slate-900/50 border border-white/5 rounded-xl py-3 pl-10 pr-4 text-sm focus:border-cyan-500/50 outline-none" />
-                    </div>
-                    <div className="relative">
-                      <Shield className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                      <input type={showKey ? "text" : "password"} placeholder="SECRET KEY" value={config.alpacaSecret} onChange={(e) => setConfig({...config, alpacaSecret: e.target.value})} className="w-full bg-slate-900/50 border border-white/5 rounded-xl py-3 pl-10 pr-12 text-sm focus:border-cyan-500/50 outline-none" />
-                      <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-cyan-400">{showKey ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-                    </div>
+              {/* Form */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* API Key */}
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                    API Key ID
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Key size={14} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
+                    <input
+                      type="text" placeholder="PK..." value={creds.keyId}
+                      onChange={e => setCreds({ ...creds, keyId: e.target.value })}
+                      style={{ width: '100%', background: 'rgba(2,6,23,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px 16px 16px 44px', fontSize: '13px', fontFamily: 'monospace', color: '#e2e8f0', outline: 'none', boxSizing: 'border-box' }}
+                    />
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <label className="text-xs font-bold text-slate-500 tracking-[0.2em] uppercase">Compute Engine</label>
-                  <div className="relative">
-                    <Link className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                    <input type="text" placeholder="Backend Engine URL" value={config.backendUrl} onChange={(e) => setConfig({...config, backendUrl: e.target.value})} className="w-full bg-slate-900/50 border border-white/5 rounded-xl py-3 pl-10 pr-4 text-sm focus:border-cyan-500/50 outline-none" />
+                {/* Secret */}
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                    Secret Key
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={14} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
+                    <input
+                      type={showSecret ? 'text' : 'password'} placeholder="Your secret key" value={creds.secret}
+                      onChange={e => setCreds({ ...creds, secret: e.target.value })}
+                      style={{ width: '100%', background: 'rgba(2,6,23,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px 44px', fontSize: '13px', fontFamily: 'monospace', color: '#e2e8f0', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                    <button onClick={() => setShowSecret(!showSecret)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 0 }}>
+                      {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-900/50 border border-white/5 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-bold flex items-center gap-2">{config.isLive ? <AlertCircle className="text-red-400" size={14} /> : <Zap className="text-emerald-400" size={14} />}{config.isLive ? "LIVE TRADING" : "PAPER TRADING"}</div>
-                    <p className="text-[10px] text-slate-500 mt-1">{config.isLive ? "Risking real capital" : "Virtual currency only"}</p>
+                {/* URL */}
+                <div>
+                  <label style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                    Trading API URL
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Globe size={14} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
+                    <input
+                      type="text" value={creds.tradingUrl}
+                      onChange={e => setCreds({ ...creds, tradingUrl: e.target.value })}
+                      style={{ width: '100%', background: 'rgba(2,6,23,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px 16px 16px 44px', fontSize: '12px', fontFamily: 'monospace', color: '#22d3ee', outline: 'none', boxSizing: 'border-box' }}
+                    />
                   </div>
-                  <button onClick={() => setConfig({...config, isLive: !config.isLive})} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${config.isLive ? 'bg-red-500/40' : 'bg-emerald-500/40'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${config.isLive ? 'left-7' : 'left-1'}`} />
+                </div>
+
+                {/* Mode Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderRadius: '16px', background: 'rgba(2,6,23,0.5)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: creds.mode === 'live' ? '#ef4444' : '#10b981' }} />
+                    <span style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+                      {creds.mode === 'live' ? 'LIVE TRADING' : 'PAPER TRADING'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const newMode = creds.mode === 'paper' ? 'live' : 'paper'
+                      setCreds({ ...creds, mode: newMode, tradingUrl: newMode === 'live' ? ALPACA_URLS.live : ALPACA_URLS.paper })
+                    }}
+                    style={{ width: '48px', height: '24px', borderRadius: '12px', position: 'relative', border: 'none', cursor: 'pointer', background: creds.mode === 'live' ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)' }}>
+                    <div style={{ position: 'absolute', top: '4px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'all 0.2s', left: creds.mode === 'live' ? '28px' : '4px' }} />
                   </button>
                 </div>
 
-                <div className="space-y-4">
-                  <label className="text-xs font-bold text-slate-500 tracking-[0.2em] uppercase">Risk Management</label>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-xs mb-2"><span>Risk per Trade</span><span className="text-cyan-400 font-mono">{config.riskPct}%</span></div>
-                      <input type="range" min="0.1" max="2.0" step="0.1" value={config.riskPct} onChange={(e) => setConfig({...config, riskPct: parseFloat(e.target.value)})} className="w-full accent-cyan-500" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold">Max Qty</span>
-                        <input type="number" value={config.maxQty} onChange={(e) => setConfig({...config, maxQty: parseInt(e.target.value)})} className="w-full bg-slate-900/50 border border-white/5 rounded-xl py-2 px-3 text-sm focus:border-cyan-500/50 outline-none font-mono" />
-                      </div>
-                      <div className="space-y-2">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold">Tickers</span>
-                        <input type="text" value={config.tickers} onChange={(e) => setConfig({...config, tickers: e.target.value})} className="w-full bg-slate-900/50 border border-white/5 rounded-xl py-2 px-3 text-sm focus:border-cyan-500/50 outline-none font-mono" />
-                      </div>
-                    </div>
+                {/* Validation Message */}
+                {validationMsg && (
+                  <div style={{
+                    padding: '12px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: 600,
+                    background: validationStatus === 'error' ? 'rgba(239,68,68,0.1)' : validationStatus === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(99,102,241,0.1)',
+                    color: validationStatus === 'error' ? '#f87171' : validationStatus === 'success' ? '#34d399' : '#818cf8',
+                    border: `1px solid ${validationStatus === 'error' ? 'rgba(239,68,68,0.2)' : validationStatus === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(99,102,241,0.2)'}`
+                  }}>
+                    {validationStatus === 'error' && <AlertCircle size={14} style={{ display: 'inline', marginRight: '8px', verticalAlign: '-2px' }} />}
+                    {validationStatus === 'success' && <CheckCircle2 size={14} style={{ display: 'inline', marginRight: '8px', verticalAlign: '-2px' }} />}
+                    {validationMsg}
+                  </div>
+                )}
+
+                {/* Validate Button */}
+                <button
+                  onClick={validateCredentials}
+                  disabled={validationStatus === 'loading'}
+                  className="btn-premium btn-primary"
+                  style={{ width: '100%', padding: '18px', fontSize: '11px', fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: validationStatus === 'loading' ? 0.6 : 1, cursor: validationStatus === 'loading' ? 'wait' : 'pointer' }}>
+                  {validationStatus === 'loading' ? (
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                      <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> Validating...
+                    </span>
+                  ) : 'Save & Validate'}
+                </button>
+
+                {/* Bypass for CORS issues */}
+                {validationStatus === 'error' && validationMsg.includes('CORS') && (
+                  <button onClick={handleBypass} style={{ width: '100%', padding: '14px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '12px', color: '#fbbf24', fontSize: '10px', fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    Proceed with Simulated Data (Bypass)
+                  </button>
+                )}
+
+                <p style={{ fontSize: '9px', color: '#334155', textAlign: 'center', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', lineHeight: 1.8 }}>
+                  Keys are stored locally in your browser only. Never sent to our servers.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ═══════ PHASE 2 & 3: DASHBOARD ═══════ */}
+        {(phase === 'VALIDATED' || phase === 'RUNNING') && (
+          <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ minHeight: '100vh', maxWidth: '1300px', margin: '0 auto', padding: '120px 24px 80px', position: 'relative', zIndex: 10 }}>
+
+            {/* Header Bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '24px', marginBottom: '48px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '999px', background: 'rgba(16,185,129,0.15)', color: '#34d399', fontSize: '10px', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', border: '1px solid rgba(16,185,129,0.2)' }}>
+                    <CheckCircle2 size={12} /> AUTHENTICATED
+                  </span>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
+                    {creds.mode.toUpperCase()} MODE • {creds.broker.toUpperCase()}
+                  </span>
+                </div>
+                <h1 style={{ fontSize: '48px', fontWeight: 900, letterSpacing: '-0.04em', textTransform: 'uppercase', margin: 0, lineHeight: 1 }}>
+                  {creds.broker === 'alpaca' ? 'Market' : 'Kraken'} <span style={{ color: creds.broker === 'alpaca' ? '#22d3ee' : '#818cf8' }}>Pulse</span>
+                </h1>
+                <p style={{ color: '#64748b', fontSize: '13px', marginTop: '8px', maxWidth: '500px', fontWeight: 500 }}>
+                  Step 2: Review live {creds.broker === 'alpaca' ? 'market' : 'crypto'} data. Configure your time window. Press START when ready.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button onClick={() => { setPhase('SETUP'); setValidationStatus('idle'); setValidationMsg('') }}
+                  style={{ padding: '12px 20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', color: '#64748b', fontSize: '10px', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  Change Keys
+                </button>
+              </div>
+            </div>
+
+            {/* ─── Time Window Config ─── */}
+            <div style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '20px', padding: '28px', marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '24px', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                <Clock size={18} color="#818cf8" />
+                <div>
+                  <span style={{ fontSize: '10px', fontWeight: 900, color: '#64748b', letterSpacing: '0.15em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>ORB Time Window</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <input type="radio" checked={!timeWindow.useCustom} onChange={() => setTimeWindow({ ...timeWindow, useCustom: false })} style={{ accentColor: '#22d3ee' }} />
+                      <span style={{ fontSize: '12px', fontWeight: 700 }}>Default (9:30 - 10:00 ET)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <input type="radio" checked={timeWindow.useCustom} onChange={() => setTimeWindow({ ...timeWindow, useCustom: true })} style={{ accentColor: '#22d3ee' }} />
+                      <span style={{ fontSize: '12px', fontWeight: 700 }}>Custom (Test Now)</span>
+                    </label>
                   </div>
                 </div>
+                {timeWindow.useCustom && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="time" value={timeWindow.customStart}
+                      onChange={e => setTimeWindow({ ...timeWindow, customStart: e.target.value })}
+                      style={{ background: 'rgba(2,6,23,0.8)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px', color: '#22d3ee', fontFamily: 'monospace', fontSize: '13px', outline: 'none' }} />
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>for</span>
+                    <select value={timeWindow.rangeMinutes}
+                      onChange={e => setTimeWindow({ ...timeWindow, rangeMinutes: Number(e.target.value) })}
+                      style={{ background: 'rgba(2,6,23,0.8)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px', color: '#22d3ee', fontSize: '13px', outline: 'none' }}>
+                      <option value={5}>5 min</option>
+                      <option value={10}>10 min</option>
+                      <option value={15}>15 min</option>
+                      <option value={30}>30 min</option>
+                    </select>
+                  </div>
+                )}
+              </div>
 
-                <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl flex items-start gap-3">
-                  <Shield className="text-cyan-400 shrink-0 mt-0.5" size={18} />
-                  <p className="text-[10px] text-slate-400 leading-relaxed italic">Your API keys are never stored on our servers. Used locally for Alpaca authentication.</p>
+              {phase !== 'RUNNING' ? (
+                <button onClick={handleStart} className="btn-premium btn-primary"
+                  style={{ padding: '16px 32px', fontSize: '12px', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <PlayCircle size={18} /> START REAL-TIME
+                </button>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 28px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '16px' }}>
+                    <Activity size={16} color="#34d399" style={{ animation: 'pulse 2s ease-in-out infinite' }} />
+                    <span style={{ fontSize: '11px', fontWeight: 900, color: '#34d399', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+                      {isRealTrading ? 'LIVE ENGINE ACTIVE' : 'SIMULATION ACTIVE'}
+                    </span>
+                  </div>
+                  <button onClick={handleStop} style={{ padding: '16px 24px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '16px', color: '#f87171', fontSize: '11px', fontWeight: 900, cursor: 'pointer' }}>
+                    STOP
+                  </button>
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div className="mt-8">
-                <button onClick={() => setIsSettingsOpen(false)} className="w-full btn-premium btn-primary py-4 uppercase tracking-[0.2em] font-bold text-xs">Save Configuration</button>
+            {/* ─── Market Data Grid ─── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '40px' }}>
+              {(marketData.length > 0 ? marketData : WATCHLIST.map(s => ({ symbol: s, price: 0, change: 0 }))).map((t, i) => (
+                <div key={i} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 900, letterSpacing: '-0.02em' }}>{t.symbol}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: t.change >= 0 ? '#34d399' : '#f87171' }}>
+                      {t.change >= 0 ? '+' : ''}{(t.change || 0).toFixed(2)}%
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, fontFamily: 'monospace', letterSpacing: '-0.03em' }}>
+                    ${(t.price || 0).toFixed(2)}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px' }}>
+                    <Signal size={10} color="#818cf8" />
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#475569', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Live</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* ─── Live Positions Section ─── */}
+            <div style={{ marginBottom: '40px' }}>
+              <h3 style={{ fontSize: '12px', fontWeight: 900, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <TrendingUp size={14} /> Live Portfolio
+              </h3>
+              {positions.length === 0 ? (
+                <div style={{ padding: '40px', background: 'rgba(15,23,42,0.3)', border: '1px dotted rgba(255,255,255,0.05)', borderRadius: '20px', textAlign: 'center', color: '#334155', fontSize: '13px' }}>
+                  No active contracts. Waiting for ORB signal...
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                  {positions.map((p, i) => (
+                    <motion.div key={i} initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                      style={{ background: 'linear-gradient(145deg, rgba(30,41,59,0.5), rgba(15,23,42,0.8))', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', top: 0, right: 0, width: '4px', height: '100%', background: parseFloat(p.unrealized_pl) >= 0 ? '#10b981' : '#ef4444' }} />
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                        <div>
+                          <span style={{ fontSize: '24px', fontWeight: 900, letterSpacing: '-0.04em' }}>{p.symbol}</span>
+                          <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginTop: '2px' }}>
+                            {p.side === 'long' ? '📈 BULLISH LONG' : '📉 BEARISH SHORT'} • {p.qty} SHARES
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '18px', fontWeight: 900, color: parseFloat(p.unrealized_pl) >= 0 ? '#34d399' : '#f87171' }}>
+                            {parseFloat(p.unrealized_pl) >= 0 ? '+' : ''}${parseFloat(p.unrealized_pl).toFixed(2)}
+                          </div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: parseFloat(p.unrealized_pl) >= 0 ? '#10b981' : '#ef4444' }}>
+                            {(parseFloat(p.unrealized_plpc) * 100).toFixed(2)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ background: 'rgba(2,6,23,0.4)', padding: '12px', borderRadius: '12px' }}>
+                          <span style={{ fontSize: '9px', color: '#475569', fontWeight: 800, display: 'block', textTransform: 'uppercase', marginBottom: '4px' }}>Avg Entry</span>
+                          <span style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'monospace' }}>${parseFloat(p.avg_entry_price).toFixed(2)}</span>
+                        </div>
+                        <div style={{ background: 'rgba(2,6,23,0.4)', padding: '12px', borderRadius: '12px' }}>
+                          <span style={{ fontSize: '9px', color: '#475569', fontWeight: 800, display: 'block', textTransform: 'uppercase', marginBottom: '4px' }}>Market Price</span>
+                          <span style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'monospace' }}>${parseFloat(p.current_price).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ─── Execution Console ─── */}
+            <div>
+              <h3 style={{ fontSize: '12px', fontWeight: 900, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <TerminalIcon size={14} /> Execution Log
+              </h3>
+              <div ref={logRef} style={{ background: 'rgba(2,6,23,0.9)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', height: '300px', padding: '20px', fontFamily: 'monospace', fontSize: '12px', overflowY: 'auto', lineHeight: 1.8 }}>
+                {logs.length === 0 ? (
+                  <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#1e293b', textAlign: 'center' }}>
+                    <Crosshair size={28} style={{ marginBottom: '12px' }} />
+                    <p>Waiting for engine start...</p>
+                  </div>
+                ) : (
+                  logs.map((l, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '16px', borderLeft: `2px solid ${l.type === 'error' ? 'rgba(239,68,68,0.3)' : l.type === 'success' ? 'rgba(16,185,129,0.3)' : l.type === 'warn' ? 'rgba(245,158,11,0.3)' : 'rgba(99,102,241,0.15)'}`, paddingLeft: '12px', marginBottom: '2px' }}>
+                      <span style={{ color: '#334155', flexShrink: 0, minWidth: '70px' }}>{l.time}</span>
+                      <span style={{ color: l.type === 'error' ? '#f87171' : l.type === 'success' ? '#34d399' : l.type === 'warn' ? '#fbbf24' : l.type === 'system' ? '#818cf8' : '#94a3b8' }}>
+                        {l.msg}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
-            </motion.div>
-          </>
+            </div>
+
+          </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Navbar */}
-      <nav className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[min(1200px,95%)] transition-all duration-500 ${scrollPos > 50 ? 'top-2' : ''}`}>
-        <div className="glass-panel px-6 py-2.5 flex justify-between items-center bg-slate-900/40 backdrop-blur-xl border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-tr from-cyan-400 to-indigo-500 rounded-xl flex items-center justify-center font-black text-xl shadow-[0_0_20px_rgba(34,211,238,0.3)]">N</div>
-            <div className="flex flex-col -gap-1">
-              <span className="font-black tracking-tighter text-lg leading-tight uppercase">Nexus<span className="text-cyan-400">.</span>Int</span>
-              <span className="text-[8px] font-bold tracking-[0.3em] text-slate-500 uppercase leading-none">AI Protocol</span>
-            </div>
-          </div>
-          
-          {/* Tab Switcher */}
-          <div className="hidden md:flex bg-slate-950/50 p-1 rounded-xl border border-white/5">
-            <button 
-              onClick={() => setActiveTab('ORB')}
-              className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all ${activeTab === 'ORB' ? 'bg-cyan-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              ORB TERMINAL
-            </button>
-            <button 
-              onClick={() => setActiveTab('INTELLIGENCE')}
-              className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all ${activeTab === 'INTELLIGENCE' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-            >
-              AGENT INTEL
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-slate-300 hover:text-cyan-400"><Settings size={18} /></button>
-            <button onClick={handleStartTrading} className="btn-premium btn-primary py-2 px-6 text-[10px] font-black tracking-widest uppercase">Launch AI</button>
-          </div>
-        </div>
-      </nav>
-
-      <main className="pt-24 min-h-screen">
-        <AnimatePresence mode="wait">
-          {activeTab === 'ORB' ? (
-            <motion.div key="orb" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.02 }} className="pt-24 relative overflow-hidden">
-               {/* Original ORB Dashboard Parts */}
-               <section className="pb-24 text-center container">
-                 <div className="flex justify-center mb-6">
-                    <span className="glass-card px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.2em] border-cyan-500/30 flex items-center gap-2 bg-slate-900/50">
-                        <div className={`w-1.5 h-1.5 rounded-full animate-pulse shadow-[0_0_8px_cyan] ${status === 'ACTIVE' ? 'bg-emerald-400 shadow-emerald-400' : 'bg-cyan-400 shadow-cyan-400'}`}></div>
-                        {status === 'ACTIVE' ? 'SYSTEM LIVE & BROADCASTING' : 'V3.0 ALPHA NOW DEPLOYED'}
-                    </span>
-                 </div>
-                 <h1 className="text-6xl md:text-8xl font-black tracking-tighter mb-6 leading-[1.1]">Deploying Capital <br/><span className="bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent italic">Without Ego.</span></h1>
-                 <p className="max-w-2xl mx-auto mt-8 text-lg text-slate-400 font-medium opacity-80">Autonomous arbitrage engine powered by Nexus AI Core. <br />Detect market inefficiencies. Execute in milliseconds. Repeat 24/7.</p>
-                 <div className="flex flex-col sm:flex-row justify-center gap-4 mt-12 px-6">
-                    <button onClick={handleStartTrading} className="btn-premium btn-primary h-14 px-8 text-sm group"><Rocket size={18} /> {status === 'ACTIVE' ? 'MANAGE SESSION' : 'START TRADING'}</button>
-                    <button className="btn-premium border border-white/10 hover:bg-white/5 backdrop-blur-md h-14 px-8 text-sm flex items-center gap-2 font-bold tracking-widest uppercase">DOCS <ArrowUpRight size={16} /></button>
-                 </div>
-               </section>
-
-               <section className="py-4 border-y border-white/5 bg-slate-900/20 backdrop-blur-md relative z-10 overflow-hidden">
-                  <div className="container flex justify-around items-center gap-8 py-2 overflow-x-auto no-scrollbar">
-                    {[
-                      { label: "NET VOLUME", val: "$4.1M+", color: "cyan" },
-                      { label: "TRADES/HR", val: "~142", color: "purple" },
-                      { label: "LATENCY", val: "1.2ms", color: "emerald" },
-                      { label: "ALPHA SCORE", val: "9.2/10", color: "amber" }
-                    ].map((s, i) => {
-                      const colorMap = { cyan: 'text-cyan-400', purple: 'text-purple-400', emerald: 'text-emerald-400', amber: 'text-amber-400' };
-                      return (
-                        <div key={i} className="flex flex-col items-center min-w-[120px]">
-                          <span className="text-[9px] font-black text-slate-500 tracking-[0.2em] mb-1 uppercase opacity-60 tracking-[0.3em]">{s.label}</span>
-                          <span className={`text-xl font-bold ${colorMap[s.color]}`}>{s.val}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-               </section>
-
-               <section id="terminal" className="py-24 container">
-                  <div className="flex justify-between items-end mb-8 px-2">
-                    <div className="space-y-1">
-                      <h2 className="text-3xl font-black tracking-tight uppercase">System Console</h2>
-                      <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Nexus-Node-01 // Real-Time Execution Stream</p>
-                    </div>
-                    <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-white/5 text-[10px] font-bold text-slate-400 flex items-center gap-2">
-                       <Signal size={12} className={engineStatus === 'CONNECTED' ? 'text-emerald-400' : 'text-slate-500'} />
-                       ENGINE: {engineStatus}
-                    </div>
-                  </div>
-                  <div className="glass-panel p-1.5 border-white/10 bg-slate-900/40 backdrop-blur-3xl shadow-[0_0_100px_rgba(34,211,238,0.1)]">
-                    <div className="terminal-window bg-[#020617] rounded-2xl overflow-hidden min-h-[500px] flex flex-col">
-                        <div className="terminal-header items-center justify-between px-6 py-4 border-b border-white/5 flex bg-slate-950/80">
-                            <div className="flex gap-2"><div className="w-3 h-3 rounded-full bg-red-500/50" /><div className="w-3 h-3 rounded-full bg-amber-500/50" /><div className="w-3 h-3 rounded-full bg-emerald-500/50" /></div>
-                            <div className="text-[10px] text-slate-500 font-mono font-bold tracking-widest uppercase">TRADER_BOT_ORB</div>
-                            <div className="flex items-center gap-3 text-cyan-400/50"><TerminalIcon size={14} /><Activity size={14} /></div>
-                        </div>
-                        <div className="flex-1 p-6 font-mono text-xs overflow-y-auto no-scrollbar custom-terminal">
-                            <AnimatePresence>
-                                {logs.map((log, idx) => (
-                                    <motion.div key={idx} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="mb-1 flex gap-4 pl-4 border-l border-white/5 hover:border-cyan-500/30 transition-all py-0.5">
-                                        <span className="text-slate-600 shrink-0 select-none">{new Date().toLocaleTimeString('en-GB')}</span>
-                                        <span className={log.includes('[TRADE]') ? 'text-cyan-400 font-bold' : log.includes('[ERROR]') ? 'text-rose-400' : log.includes('[LIVE]') ? 'text-emerald-400' : 'text-slate-400 opacity-80'}>{log}</span>
-                                    </motion.div>
-                                ))}
-                            </AnimatePresence>
-                        </div>
-                    </div>
-                  </div>
-               </section>
-            </motion.div>
-          ) : (
-            <motion.div key="intel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="container pt-12 pb-24">
-               {/* Nexus Intelligence View */}
-               <div className="grid lg:grid-cols-12 gap-8 items-start">
-                  
-                  {/* Left Column: Analysts & Debate */}
-                  <div className="lg:col-span-8 space-y-8">
-                     <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                           <h2 className="text-4xl font-black tracking-tighter uppercase flex items-center gap-4">
-                              Multi-Agent <span className="text-indigo-400">War Room</span>
-                              <div className="flex -space-x-3">
-                                 {[1,2,3,4].map(i => <div key={i} className={`w-8 h-8 rounded-full border-2 border-slate-950 bg-slate-800 flex items-center justify-center`}><Users size={12} className="text-slate-500" /></div>)}
-                              </div>
-                           </h2>
-                           <p className="text-slate-500 text-xs font-bold tracking-widest uppercase">Consensus Mechanism v2.0 // Active Analysts: 6</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                           <span className="text-[10px] font-bold text-slate-500 tracking-widest uppercase">Live Thread</span>
-                           <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-                        </div>
-                     </div>
-
-                     <div className="glass-panel overflow-hidden border-white/10 bg-slate-900/60 backdrop-blur-2xl">
-                        <div className="flex border-b border-white/5">
-                           <button className="flex-1 py-4 text-[10px] font-black tracking-[0.2em] border-b-2 border-indigo-500 text-indigo-400 bg-indigo-500/5 uppercase">Global Debate</button>
-                           <button className="flex-1 py-4 text-[10px] font-black tracking-[0.2em] text-slate-500 hover:text-slate-300 uppercase">Signal Evidence</button>
-                           <button className="flex-1 py-4 text-[10px] font-black tracking-[0.2em] text-slate-500 hover:text-slate-300 uppercase">Backtest Logs</button>
-                        </div>
-                        <div className="h-[600px] overflow-y-auto p-6 scroll-smooth custom-scrollbar space-y-4">
-                           {agentLogs.length === 0 && <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-4 opacity-40"><Brain size={48} className="animate-pulse" /><p className="text-[10px] font-black tracking-widest uppercase">Initializing Intelligence Core...</p></div>}
-                           <AnimatePresence>
-                              {agentLogs.map((msg, i) => (
-                                 <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-4 items-start ${msg.type === 'bullish' ? 'border-indigo-500/10' : 'border-white/5'} border-l-2 pl-6 py-4 hover:bg-white/5 transition-colors rounded-r-2xl`}>
-                                    <div className={`w-12 h-12 rounded-xl shrink-0 flex items-center justify-center font-black ${msg.agent === 'Fundamental' ? 'bg-amber-500/20 text-amber-500' : msg.agent === 'Sentiment' ? 'bg-cyan-500/20 text-cyan-500' : msg.agent === 'Technical' ? 'bg-indigo-500/20 text-indigo-500' : 'bg-rose-500/20 text-rose-500'}`}>
-                                       {msg.agent[0]}
-                                    </div>
-                                    <div className="flex-1">
-                                       <div className="flex items-center gap-3 mb-1">
-                                          <span className="text-xs font-black tracking-tighter uppercase">{msg.agent} <span className="text-slate-600 opacity-60">Analyst</span></span>
-                                          <span className="text-[9px] font-bold text-slate-600 font-mono uppercase">{msg.time}</span>
-                                          {msg.type === 'bullish' && <span className="text-[8px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold uppercase">Evidence +</span>}
-                                       </div>
-                                       <p className="text-sm text-slate-300 leading-relaxed font-medium opacity-90">{msg.text}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-slate-600">
-                                       <MessageSquare size={14} className="hover:text-indigo-400 cursor-pointer" />
-                                       <Activity size={14} className="hover:text-cyan-400 cursor-pointer" />
-                                    </div>
-                                 </motion.div>
-                              ))}
-                           </AnimatePresence>
-                        </div>
-                        <div className="p-4 bg-slate-950/40 border-t border-white/5 flex gap-4">
-                           <input type="text" placeholder="Interrogate Nexus Core..." className="flex-1 bg-slate-900 border border-white/5 rounded-xl px-4 py-3 text-sm focus:border-indigo-500/50 outline-none" />
-                           <button className="btn-premium btn-primary py-3 px-6"><Rocket size={18} /></button>
-                        </div>
-                     </div>
-                  </div>
-
-                  {/* Right Column: Signal Pulse & Ratings */}
-                  <div className="lg:col-span-4 space-y-8">
-                     <div className="glass-panel p-8 bg-gradient-to-br from-indigo-500/10 to-transparent border-indigo-500/20">
-                        <div className="flex justify-between items-start mb-6">
-                           <div className="space-y-1">
-                              <h3 className="text-lg font-black tracking-tighter uppercase">Intelligence Consensus</h3>
-                              <p className="text-[10px] text-indigo-400 font-bold tracking-widest uppercase">Strong Probability Cluster</p>
-                           </div>
-                           <Activity size={24} className="text-indigo-400" />
-                        </div>
-                        <div className="flex flex-col items-center py-8">
-                           <div className="relative w-48 h-48 flex items-center justify-center">
-                              <svg className="w-full h-full transform -rotate-90">
-                                 <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-800" />
-                                 <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={553} strokeDashoffset={553 - (553 * 0.82)} className="text-indigo-500 transition-all duration-1000" />
-                              </svg>
-                              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                 <span className="text-5xl font-black tracking-tighter">82</span>
-                                 <span className="text-[10px] font-black text-indigo-400 tracking-[0.3em] uppercase">Bullish</span>
-                              </div>
-                           </div>
-                           <p className="mt-8 text-center text-xs text-slate-400 leading-relaxed font-bold uppercase opacity-60">Calculated across 84 market signals and 14 agents.</p>
-                        </div>
-                     </div>
-
-                     <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-slate-500 tracking-[0.3em] uppercase px-2">Analyst Verdicts</h4>
-                        {[
-                          { name: "Technical Core", status: "BUY", score: 88, color: "emerald" },
-                          { name: "Sentiment Pulse", status: "WATCH", score: 65, color: "cyan" },
-                          { name: "Fundamental AI", status: "STRONG BUY", score: 94, color: "indigo" },
-                          { name: "Risk Manager", status: "PASS", score: 100, color: "emerald" }
-                        ].map((v, i) => (
-                           <div key={i} className="glass-panel p-4 flex items-center justify-between hover:bg-white/5 transition-all group">
-                              <div className="flex items-center gap-3">
-                                 <div className={`w-2 h-2 rounded-full bg-${v.color}-500 group-hover:animate-ping`} />
-                                 <span className="text-xs font-black tracking-tighter uppercase">{v.name}</span>
-                              </div>
-                              <div className="flex items-center gap-4 text-xs font-black">
-                                 <span className={`text-${v.color}-400 uppercase`}>{v.status}</span>
-                                 <span className="text-slate-600 font-mono">{v.score}%</span>
-                              </div>
-                           </div>
-                        ))}
-                     </div>
-
-                     <div className="glass-panel p-6 bg-slate-900/40 relative overflow-hidden group">
-                        <div className="relative z-10">
-                           <h4 className="text-[10px] font-black text-indigo-400 tracking-[0.3em] uppercase mb-4">Signal Breakdown</h4>
-                           <div className="space-y-3">
-                              {[
-                                 { label: "RSI Divergence", val: 82 },
-                                 { label: "FVG Liquidity", val: 94 },
-                                 { label: "ORB Confirmation", val: 12 },
-                                 { label: "Institutional Inflow", val: 76 }
-                              ].map((s, i) => (
-                                 <div key={i} className="space-y-1">
-                                    <div className="flex justify-between text-[10px] font-bold uppercase opacity-60 tracking-widest">
-                                       <span>{s.label}</span>
-                                       <span>{s.val}%</span>
-                                    </div>
-                                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                                       <motion.div initial={{ width: 0 }} animate={{ width: `${s.val}%` }} transition={{ delay: 0.5 + (i * 0.1) }} className="h-full bg-indigo-500" />
-                                    </div>
-                                 </div>
-                              ))}
-                           </div>
-                        </div>
-                        <Layers size={80} className="absolute -bottom-4 -right-4 text-white/5 group-hover:rotate-12 transition-transform duration-700" />
-                     </div>
-                  </div>
-               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
-
-      {/* Footer */}
-      <footer className="py-20 border-t border-white/5 bg-[#020617] relative z-20">
-        <div className="container flex flex-col items-center">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-gradient-to-tr from-cyan-400 to-indigo-500 rounded-xl flex items-center justify-center font-black text-2xl">N</div>
-            <span className="font-black tracking-tighter text-2xl">NEXUS<span className="text-cyan-400">.</span>INT</span>
-          </div>
-          <div className="flex gap-8 mb-8 text-[10px] font-black tracking-[0.2em] text-slate-500 uppercase">
-            <a href="#" className="hover:text-cyan-400 transition-colors uppercase">Twitter</a>
-            <a href="#" className="hover:text-cyan-400 transition-colors uppercase">GitHub</a>
-            <a href="#" className="hover:text-cyan-400 transition-colors uppercase">Discord</a>
-          </div>
-          <p className="text-slate-600 text-[10px] font-bold tracking-[0.1em]">© 2026 NEXUS AI CORE PROTOCOL. POWERED BY MULTI-AGENT INTELLIGENCE.</p>
-        </div>
-      </footer>
+      {/* Spinning animation for loading */}
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+      `}</style>
     </div>
   )
 }

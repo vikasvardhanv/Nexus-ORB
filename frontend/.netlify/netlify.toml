@@ -11,10 +11,10 @@ port = 5173.0
 [functions."*"]
 
 [build]
-publish = "/Users/vikashvardhan/IdeaProjects/ProjectNexusAI/orb_deploy/frontend/dist"
+publish = "/Users/vikashvardhan/IdeaProjects/ORB-tRADING/frontend/dist"
 publishOrigin = "config"
 commandOrigin = "config"
-base = "/Users/vikashvardhan/IdeaProjects/ProjectNexusAI/orb_deploy/frontend"
+base = "/Users/vikashvardhan/IdeaProjects/ORB-tRADING/frontend"
 command = "npm run build"
 
 [build.environment]

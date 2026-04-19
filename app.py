@@ -9,7 +9,7 @@ from pathlib import Path
 from threading import Thread
 
 # Add execution directory to path so we can import the trading script
-EXECUTION_DIR = Path(__file__).resolve().parent.parent / "execution"
+EXECUTION_DIR = Path(__file__).resolve().parent / "execution"
 sys.path.append(str(EXECUTION_DIR))
 
 # Import specific functions if needed, but we'll mostly run the module as a process

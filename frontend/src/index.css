@@ -132,3 +132,58 @@ body {
 .custom-terminal {
   scrollbar-gutter: stable;
 }
+
+/* Order Book Styles */
+.order-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 4px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.order-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bid-row {
+  color: var(--success);
+}
+
+.ask-row {
+  color: var(--danger);
+}
+
+/* Debate Styles */
+.debate-thread {
+  position: relative;
+  padding-left: 24px;
+}
+
+.debate-thread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--accent-secondary), transparent);
+  border-radius: 2px;
+}
+
+/* Interactive Badge */
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.badge-blue { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
+.badge-green { background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
+.badge-red { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+.badge-amber { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
