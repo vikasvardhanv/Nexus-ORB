@@ -127,6 +127,21 @@ export default function App() {
   const fetchMarketData = useCallback(async () => {
     if (!creds.keyId || !creds.secret) return
 
+    // For Kraken, skip Alpaca entirely and build crypto placeholders
+    if (creds.broker === 'kraken') {
+      setMarketData(userWatchlist.map(s => ({
+        symbol: s,
+        price: s.startsWith('BTC') ? 65000 + (Math.random()-0.5)*1000 :
+               s.startsWith('ETH') ? 3200 + (Math.random()-0.5)*200 :
+               s.startsWith('SOL') ? 145 + (Math.random()-0.5)*10 :
+               s.startsWith('XRP') ? 0.55 + (Math.random()-0.5)*0.05 :
+               Math.random() * 2,
+        high: 0, low: 0, volume: 0, vwap: 0,
+        change: (Math.random() - 0.5) * 6
+      })))
+      return
+    }
+
     try {
       const symbols = userWatchlist.join(',')
       const res = await fetch(`${creds.dataUrl}/v2/stocks/snapshots?symbols=${symbols}`, {
@@ -152,11 +167,11 @@ export default function App() {
     } catch {
       setMarketData(userWatchlist.map(s => ({
         symbol: s,
-        price: s.includes('BTC') ? 65000 : s.includes('ETH') ? 3500 : 100 + Math.random() * 400,
+        price: 100 + Math.random() * 400,
         high: 0, low: 0, volume: 0, vwap: 0,
         change: (Math.random() - 0.5) * 4
       })))
-      addLog(`[DATA] Using ${creds.broker === 'alpaca' ? 'simulated' : 'crypto'} market snapshot.`, 'warn')
+      addLog('[DATA] Using simulated market snapshot.', 'warn')
     }
   }, [creds, userWatchlist, addLog])
 
@@ -615,7 +630,7 @@ export default function App() {
 
             {/* ─── Market Data Grid ─── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '40px' }}>
-              {(marketData.length > 0 ? marketData : WATCHLIST.map(s => ({ symbol: s, price: 0, change: 0 }))).map((t, i) => (
+              {(marketData.length > 0 ? marketData : userWatchlist.map(s => ({ symbol: s, price: 0, change: 0 }))).map((t, i) => (
                 <div key={i} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <span style={{ fontSize: '18px', fontWeight: 900, letterSpacing: '-0.02em' }}>{t.symbol}</span>
