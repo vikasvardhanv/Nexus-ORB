@@ -150,6 +150,52 @@ def get_logs():
     with manager.lock:
         return {"logs": manager.logs}
 
+@app.post("/validate")
+def validate_creds(config: TradeConfig):
+    try:
+        if config.broker == "alpaca":
+            import requests
+            url = f"{config.tradingUrl}/v2/account"
+            headers = {
+                "APCA-API-KEY-ID": config.keyId,
+                "APCA-API-SECRET-KEY": config.secret
+            }
+            res = requests.get(url, headers=headers)
+            if res.status_code == 200:
+                return res.json()
+            else:
+                raise HTTPException(status_code=res.status_code, detail=res.text)
+        else:
+            # Kraken validation
+            import hashlib
+            import hmac
+            import base64
+            import time
+            import requests
+
+            def get_kraken_signature(urlpath, data, secret):
+                postdata = requests.compat.urlencode(data)
+                encoded = (str(data['nonce']) + postdata).encode()
+                message = urlpath.encode() + hashlib.sha256(encoded).digest()
+                mac = hmac.new(base64.b64decode(secret), message, hashlib.sha512)
+                sigdigest = base64.b64encode(mac.digest())
+                return sigdigest.decode()
+
+            nonce = str(int(time.time() * 1000))
+            data = {"nonce": nonce}
+            headers = {
+                'API-Key': config.keyId,
+                'API-Sign': get_kraken_signature('/0/private/Balance', data, config.secret)
+            }
+            res = requests.post('https://api.kraken.com/0/private/Balance', headers=headers, data=data)
+            resp_json = res.json()
+            if resp_json.get("error") and len(resp_json["error"]) > 0:
+                raise HTTPException(status_code=401, detail=str(resp_json["error"]))
+            return {"status": "success", "result": resp_json.get("result", {})}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/positions")
 def get_positions():
     if not manager.keyId or not manager.secret:

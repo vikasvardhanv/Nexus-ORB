@@ -75,49 +75,39 @@ export default function App() {
     }
 
     setValidationStatus('loading')
-    setValidationMsg('Connecting to Alpaca...')
-    addLog('[AUTH] Attempting credential validation against Alpaca API...', 'system')
+    setValidationMsg(`Connecting to ${creds.broker.toUpperCase()} via Nexus Bridge...`)
+    addLog(`[AUTH] Attempting credential validation via backend bridge...`, 'system')
 
     try {
-      // Hit GET /v2/account with APCA headers (per Alpaca docs)
-      const res = await fetch(`${creds.tradingUrl}/v2/account`, {
-        method: 'GET',
-        headers: {
-          'APCA-API-KEY-ID': creds.keyId.trim(),
-          'APCA-API-SECRET-KEY': creds.secret.trim()
-        }
+      const res = await fetch('http://localhost:8000/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyId: creds.keyId.trim(),
+          secret: creds.secret.trim(),
+          broker: creds.broker,
+          tradingUrl: creds.tradingUrl,
+          mode: creds.mode
+        })
       })
 
       if (res.ok) {
         const data = await res.json()
         setAccountInfo(data)
         setValidationStatus('success')
-        setValidationMsg(`Verified! Account: ${data.account_number || 'OK'} | Status: ${data.status || 'ACTIVE'}`)
-        addLog(`[AUTH] SUCCESS - Account ${data.account_number || 'verified'}. Buying power: $${parseFloat(data.buying_power || 0).toLocaleString()}`, 'success')
-        addLog(`[AUTH] Mode: ${creds.mode.toUpperCase()} | Equity: $${parseFloat(data.equity || 0).toLocaleString()}`, 'success')
+        setValidationMsg(`Verified! ${creds.broker.toUpperCase()} connection active.`)
+        addLog(`[AUTH] SUCCESS - ${creds.broker.toUpperCase()} account verified and ready.`, 'success')
         setTimeout(() => setPhase('VALIDATED'), 1500)
-      } else if (res.status === 401 || res.status === 403) {
-        setValidationStatus('error')
-        setValidationMsg('Invalid credentials. Check your API Key ID and Secret Key.')
-        addLog('[AUTH] FAILED - 401 Unauthorized. Credentials are invalid.', 'error')
       } else {
-        const errText = await res.text()
+        const errorData = await res.json()
         setValidationStatus('error')
-        setValidationMsg(`API Error (${res.status}): ${errText.slice(0, 100)}`)
-        addLog(`[AUTH] FAILED - HTTP ${res.status}`, 'error')
+        setValidationMsg(`Validation Failed: ${errorData.detail || 'Invalid Keys'}`)
+        addLog(`[AUTH] FAILED - Broker rejected keys.`, 'error')
       }
     } catch (err) {
-      // CORS or network error
-      if (err.message.includes('Failed to fetch') || err.name === 'TypeError') {
-        setValidationStatus('error')
-        setValidationMsg('Network/CORS error. Browser security blocks direct API calls. Use a backend proxy or the Netlify Function endpoint for production validation.')
-        addLog('[AUTH] CORS blocked. Direct browser-to-Alpaca calls are restricted by browser security policy.', 'error')
-        addLog('[AUTH] TIP: For testing, you can proceed with a bypass. For production, deploy a serverless proxy.', 'warn')
-      } else {
-        setValidationStatus('error')
-        setValidationMsg(`Connection error: ${err.message}`)
-        addLog(`[AUTH] ERROR - ${err.message}`, 'error')
-      }
+      setValidationStatus('error')
+      setValidationMsg('Backend Bridge Error. Make sure api.py is running on port 8000.')
+      addLog(`[AUTH] ERROR - Could not reach local bridge API: ${err.message}`, 'error')
     }
   }
 
