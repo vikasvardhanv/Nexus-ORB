@@ -1,4 +1,10 @@
 import os
+from dotenv import load_dotenv
+import requests
+
+load_dotenv() # Load keys from .env
+
+
 import subprocess
 import signal
 import threading
@@ -74,9 +80,14 @@ def start_trading(config: TradeConfig, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Trading process already running")
 
     manager.logs = ["[SYSTEM] Starting Nexus-ORB Core..."]
-    manager.keyId = config.keyId
-    manager.secret = config.secret
+    manager.keyId = config.keyId if config.keyId else os.getenv("APCA-API-KEY-ID")
+    manager.secret = config.secret if config.secret else os.getenv("APCA-API-SECRET-KEY")
+    
+    if not manager.keyId or not manager.secret:
+         raise HTTPException(status_code=400, detail="Missing API keys in request and .env")
+
     manager.mode = config.mode
+
     manager.broker = config.broker
     
     if config.broker == "kraken":
@@ -154,13 +165,19 @@ def get_logs():
 def validate_creds(config: TradeConfig):
     try:
         if config.broker == "alpaca":
-            import requests
+            key_id = config.keyId if config.keyId else os.getenv("APCA-API-KEY-ID")
+            secret = config.secret if config.secret else os.getenv("APCA-API-SECRET-KEY")
+            
+            if not key_id or not secret:
+                 raise HTTPException(status_code=400, detail="Missing Alpaca keys")
+
             url = f"{config.tradingUrl}/v2/account"
             headers = {
-                "APCA-API-KEY-ID": config.keyId,
-                "APCA-API-SECRET-KEY": config.secret
+                "APCA-API-KEY-ID": key_id,
+                "APCA-API-SECRET-KEY": secret
             }
             res = requests.get(url, headers=headers)
+
             if res.status_code == 200:
                 return res.json()
             else:

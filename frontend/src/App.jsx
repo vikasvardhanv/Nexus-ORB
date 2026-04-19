@@ -17,6 +17,13 @@ const ALPACA_URLS = {
 
 const WATCHLIST = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'META', 'MSFT']
 const CRYPTO_WATCHLIST = ['BTCUSD', 'ETHUSD', 'SOLUSD', 'XRPUSD', 'DOGEUSD', 'ADAUSD']
+const API_BASE = import.meta.env.VITE_API_URL || (
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? '/api' 
+    : 'https://vikasvardhanv--nexus-orb-trader-run-bridge-api.modal.run'
+)
+
+
 
 /* ───── Helpers ───── */
 function formatTime(d) {
@@ -71,18 +78,17 @@ export default function App() {
 
   // ─── Real Alpaca Validation ───
   const validateCredentials = async () => {
-    if (!creds.keyId.trim() || !creds.secret.trim()) {
-      setValidationStatus('error')
-      setValidationMsg('Both API Key ID and Secret Key are required.')
-      return
-    }
+    // If keys are empty, we allow it as the backend may have them in .env
+    const usingEnv = !creds.keyId.trim() || !creds.secret.trim();
+
+
 
     setValidationStatus('loading')
     setValidationMsg(`Connecting to ${creds.broker.toUpperCase()} via Nexus Bridge...`)
     addLog(`[AUTH] Attempting credential validation via backend bridge...`, 'system')
 
     try {
-      const res = await fetch('http://localhost:8000/validate', {
+      const res = await fetch(`${API_BASE}/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -109,7 +115,7 @@ export default function App() {
       }
     } catch (err) {
       setValidationStatus('error')
-      setValidationMsg('Backend Bridge Error. Make sure api.py is running on port 8000.')
+      setValidationMsg('Backend Bridge Error. Make sure your Nexus-ORB API is reachable.')
       addLog(`[AUTH] ERROR - Could not reach local bridge API: ${err.message}`, 'error')
     }
   }
@@ -203,7 +209,7 @@ export default function App() {
     if (phase === 'RUNNING' && isRealTrading) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch('http://localhost:8000/logs');
+          const res = await fetch(`${API_BASE}/logs`);
           if (res.ok) {
             const data = await res.json();
             // Map plain text logs to UI log format
@@ -228,7 +234,7 @@ export default function App() {
     if (phase === 'RUNNING' || phase === 'VALIDATED') {
       const fetchPositions = async () => {
         try {
-          const res = await fetch('http://localhost:8000/positions');
+          const res = await fetch(`${API_BASE}/positions`);
           if (res.ok) {
             const data = await res.json();
             setPositions(data.positions || []);
@@ -248,7 +254,7 @@ export default function App() {
   const handleStart = async () => {
     // Try to start the real backend first
     try {
-      const res = await fetch('http://localhost:8000/start', {
+      const res = await fetch(`${API_BASE}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -324,7 +330,7 @@ export default function App() {
   const handleStop = async () => {
     if (isRealTrading) {
       try {
-        await fetch('http://localhost:8000/stop', { method: 'POST' });
+        await fetch(`${API_BASE}/stop`, { method: 'POST' });
         addLog('[SYSTEM] Stop signal sent to engine.', 'warn');
       } catch (err) {
         addLog('[SYSTEM] Failed to connect to engine to stop.', 'error');
@@ -411,7 +417,11 @@ export default function App() {
                       {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                  <p style={{ fontSize: '9px', color: '#475569', marginTop: '6px', fontStyle: 'italic' }}>
+                    Tip: Leave empty to use keys from server .env file
+                  </p>
                 </div>
+
 
                 {/* URL - Only for Alpaca */}
                 {creds.broker === 'alpaca' && (
