@@ -380,15 +380,15 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Secret */}
+                {/* Secret / Private Key */}
                 <div>
                   <label style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                    Secret Key
+                    {creds.broker === 'alpaca' ? 'Secret Key' : 'Private Key (Secret)'}
                   </label>
                   <div style={{ position: 'relative' }}>
                     <Lock size={14} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
                     <input
-                      type={showSecret ? 'text' : 'password'} placeholder="Your secret key" value={creds.secret}
+                      type={showSecret ? 'text' : 'password'} placeholder={creds.broker === 'alpaca' ? "Your secret key" : "Your kraken private key"} value={creds.secret}
                       onChange={e => setCreds({ ...creds, secret: e.target.value })}
                       style={{ width: '100%', background: 'rgba(2,6,23,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px 44px', fontSize: '13px', fontFamily: 'monospace', color: '#e2e8f0', outline: 'none', boxSizing: 'border-box' }}
                     />
@@ -398,38 +398,49 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* URL */}
-                <div>
-                  <label style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                    Trading API URL
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Globe size={14} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
-                    <input
-                      type="text" value={creds.tradingUrl}
-                      onChange={e => setCreds({ ...creds, tradingUrl: e.target.value })}
-                      style={{ width: '100%', background: 'rgba(2,6,23,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px 16px 16px 44px', fontSize: '12px', fontFamily: 'monospace', color: '#22d3ee', outline: 'none', boxSizing: 'border-box' }}
-                    />
+                {/* URL - Only for Alpaca */}
+                {creds.broker === 'alpaca' && (
+                  <div>
+                    <label style={{ fontSize: '10px', fontWeight: 800, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                      Trading API URL
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Globe size={14} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
+                      <input
+                        type="text" value={creds.tradingUrl}
+                        onChange={e => setCreds({ ...creds, tradingUrl: e.target.value })}
+                        style={{ width: '100%', background: 'rgba(2,6,23,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px 16px 16px 44px', fontSize: '12px', fontFamily: 'monospace', color: '#22d3ee', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Mode Toggle */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderRadius: '16px', background: 'rgba(2,6,23,0.5)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: creds.mode === 'live' ? '#ef4444' : '#10b981' }} />
-                    <span style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-                      {creds.mode === 'live' ? 'LIVE TRADING' : 'PAPER TRADING'}
+                {/* Mode Toggle / Status */}
+                {creds.broker === 'alpaca' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderRadius: '16px', background: 'rgba(2,6,23,0.5)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: creds.mode === 'live' ? '#ef4444' : '#10b981', animation: 'pulse 2s infinite' }} />
+                      <span style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+                        {creds.mode === 'live' ? 'LIVE TRADING' : 'PAPER TRADING'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newMode = creds.mode === 'paper' ? 'live' : 'paper'
+                        setCreds({ ...creds, mode: newMode, tradingUrl: newMode === 'live' ? ALPACA_URLS.live : ALPACA_URLS.paper })
+                      }}
+                      style={{ width: '48px', height: '24px', borderRadius: '12px', position: 'relative', border: 'none', cursor: 'pointer', background: creds.mode === 'live' ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)' }}>
+                      <div style={{ position: 'absolute', top: '4px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'all 0.2s', left: creds.mode === 'live' ? '28px' : '4px' }} />
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', borderRadius: '16px', background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#818cf8', animation: 'pulse 2s infinite' }} />
+                    <span style={{ fontSize: '10px', fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#a5b4fc' }}>
+                      LIVE REAL-MONEY MODE ACTIVE
                     </span>
                   </div>
-                  <button
-                    onClick={() => {
-                      const newMode = creds.mode === 'paper' ? 'live' : 'paper'
-                      setCreds({ ...creds, mode: newMode, tradingUrl: newMode === 'live' ? ALPACA_URLS.live : ALPACA_URLS.paper })
-                    }}
-                    style={{ width: '48px', height: '24px', borderRadius: '12px', position: 'relative', border: 'none', cursor: 'pointer', background: creds.mode === 'live' ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)' }}>
-                    <div style={{ position: 'absolute', top: '4px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'all 0.2s', left: creds.mode === 'live' ? '28px' : '4px' }} />
-                  </button>
-                </div>
+                )}
 
                 {/* Validation Message */}
                 {validationMsg && (
