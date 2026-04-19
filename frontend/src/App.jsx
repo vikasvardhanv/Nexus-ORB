@@ -38,6 +38,8 @@ export default function App() {
   const [logs, setLogs] = useState([])
   const [isRealTrading, setIsRealTrading] = useState(false)
   const [positions, setPositions] = useState([])
+  const [userWatchlist, setUserWatchlist] = useState(WATCHLIST)
+  const [newTicker, setNewTicker] = useState('')
   const [marketData, setMarketData] = useState([])
   const logRef = useRef(null)
 
@@ -112,12 +114,19 @@ export default function App() {
     }
   }
 
-  // ─── Fetch Market Snapshots from Alpaca ───
+  // ─── Sync Watchlist when Broker changes ───
+  useEffect(() => {
+    if (phase === 'SETUP' || phase === 'VALIDATED') {
+      setUserWatchlist(creds.broker === 'alpaca' ? WATCHLIST : CRYPTO_WATCHLIST)
+    }
+  }, [creds.broker, phase])
+
+  // ─── Fetch Market Snapshots ───
   const fetchMarketData = useCallback(async () => {
     if (!creds.keyId || !creds.secret) return
 
     try {
-      const symbols = WATCHLIST.join(',')
+      const symbols = userWatchlist.join(',')
       const res = await fetch(`${creds.dataUrl}/v2/stocks/snapshots?symbols=${symbols}`, {
         headers: {
           'APCA-API-KEY-ID': creds.keyId.trim(),
@@ -139,9 +148,7 @@ export default function App() {
         addLog(`[DATA] Refreshed snapshots for ${parsed.length} symbols.`, 'info')
       }
     } catch {
-      // Fallback simulated data if API fails or if using Kraken (simulated for now)
-      const list = creds.broker === 'alpaca' ? WATCHLIST : ['BTCUSD', 'ETHUSD', 'SOLUSD', 'DOTUSD', 'XRPUSD', 'DOGEUSD', 'ADAUSD', 'LINKUSD']
-      setMarketData(list.map(s => ({
+      setMarketData(userWatchlist.map(s => ({
         symbol: s,
         price: s.includes('BTC') ? 65000 : s.includes('ETH') ? 3500 : 100 + Math.random() * 400,
         high: 0, low: 0, volume: 0, vwap: 0,
@@ -149,7 +156,7 @@ export default function App() {
       })))
       addLog(`[DATA] Using ${creds.broker === 'alpaca' ? 'simulated' : 'crypto'} market snapshot.`, 'warn')
     }
-  }, [creds, addLog])
+  }, [creds, userWatchlist, addLog])
 
   // ─── Market data polling ───
   useEffect(() => {
@@ -222,8 +229,6 @@ export default function App() {
 
   // ─── START handler ───
   const handleStart = async () => {
-    const activeWatchlist = creds.broker === 'kraken' ? CRYPTO_WATCHLIST : WATCHLIST;
-    
     // Try to start the real backend first
     try {
       const res = await fetch('http://localhost:8000/start', {
@@ -232,7 +237,7 @@ export default function App() {
         body: JSON.stringify({
           keyId: creds.keyId.trim(),
           secret: creds.secret.trim(),
-          tickers: activeWatchlist.join(','),
+          tickers: userWatchlist.join(','),
           quantity: 10,
           mode: creds.mode,
           risk_pct: 0.5,
@@ -497,11 +502,53 @@ export default function App() {
                   {creds.broker === 'alpaca' ? 'Market' : 'Kraken'} <span style={{ color: creds.broker === 'alpaca' ? '#22d3ee' : '#818cf8' }}>Pulse</span>
                 </h1>
                 <p style={{ color: '#64748b', fontSize: '13px', marginTop: '8px', maxWidth: '500px', fontWeight: 500 }}>
-                  Step 2: Review live {creds.broker === 'alpaca' ? 'market' : 'crypto'} data. Configure your time window. Press START when ready.
+                  Step 2: Customise your watchlist and time window. Press START when ready.
                 </p>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {/* Ticker Management Section */}
+              <div style={{ background: 'rgba(15,23,42,0.4)', padding: '24px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '32px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 900, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase' }}>Active Strategy Watchlist</span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      type="text" value={newTicker} onChange={e => setNewTicker(e.target.value.toUpperCase())}
+                      placeholder="Add Ticker..."
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newTicker) {
+                           if (!userWatchlist.includes(newTicker)) setUserWatchlist([...userWatchlist, newTicker]);
+                           setNewTicker('');
+                        }
+                      }}
+                      style={{ background: 'rgba(2,6,23,0.5)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '10px 16px', color: '#fff', fontSize: '12px', outline: 'none', width: '120px' }}
+                    />
+                    <button 
+                      onClick={() => {
+                        if (newTicker && !userWatchlist.includes(newTicker)) {
+                          setUserWatchlist([...userWatchlist, newTicker]);
+                          setNewTicker('');
+                        }
+                      }}
+                      style={{ background: creds.broker === 'alpaca' ? '#22d3ee' : '#818cf8', color: '#000', border: 'none', borderRadius: '12px', padding: '0 16px', fontSize: '11px', fontWeight: 900, cursor: 'pointer' }}>
+                      ADD
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {userWatchlist.map(tick => (
+                    <div key={tick} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800, fontFamily: 'monospace' }}>{tick}</span>
+                      <button onClick={() => setUserWatchlist(userWatchlist.filter(t => t !== tick))} style={{ background: 'none', border: 'none', color: '#ef4444', padding: 0, display: 'flex', cursor: 'pointer' }}>
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  {userWatchlist.length === 0 && <span style={{ color: '#334155', fontSize: '12px', fontStyle: 'italic' }}>Watchlist is empty. Add a symbol above.</span>}
+                </div>
+              </div>
+
+              {/* Time Window (Moved here for better flow) */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '32px' }}>
                 <button onClick={() => { setPhase('SETUP'); setValidationStatus('idle'); setValidationMsg('') }}
                   style={{ padding: '12px 20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', color: '#64748b', fontSize: '10px', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
                   Change Keys
