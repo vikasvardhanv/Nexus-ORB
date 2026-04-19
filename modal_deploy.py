@@ -17,16 +17,20 @@ image = (
         "python-dotenv",
         "requests"
     )
-    # We mount the current project files into the cloud container
+    # We mount the current project files and .env into the cloud container
     .add_local_python_source("api", "execution")
+    .add_local_file(".env", "/root/.env")
 )
+
 
 app = modal.App("nexus-orb-trader")
 
 @app.function(
     image=image,
-    timeout=3600
+    timeout=3600,
+    keep_warm=1
 )
+
 @modal.web_server(8000)
 def run_bridge_api():
     """
