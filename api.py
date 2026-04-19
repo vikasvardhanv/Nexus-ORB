@@ -19,16 +19,12 @@ app = FastAPI(title="Nexus-ORB Bridge API")
 # Enable CORS for the React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://nexus-orb-trader-v4.netlify.app",
-        "http://localhost:5173",
-        "http://localhost:3000"
-    ],
-
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 # Global variables to track the trading process
