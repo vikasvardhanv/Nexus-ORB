@@ -16,6 +16,7 @@ const ALPACA_URLS = {
 }
 
 const WATCHLIST = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'META', 'MSFT']
+const CRYPTO_WATCHLIST = ['BTCUSD', 'ETHUSD', 'SOLUSD', 'XRPUSD', 'DOGEUSD', 'ADAUSD']
 
 /* ───── Helpers ───── */
 function formatTime(d) {
@@ -221,15 +222,17 @@ export default function App() {
 
   // ─── START handler ───
   const handleStart = async () => {
+    const activeWatchlist = creds.broker === 'kraken' ? CRYPTO_WATCHLIST : WATCHLIST;
+    
     // Try to start the real backend first
     try {
       const res = await fetch('http://localhost:8000/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          keyId: creds.keyId,
-          secret: creds.secret,
-          tickers: WATCHLIST.join(','),
+          keyId: creds.keyId.trim(),
+          secret: creds.secret.trim(),
+          tickers: activeWatchlist.join(','),
           quantity: 10,
           mode: creds.mode,
           risk_pct: 0.5,
