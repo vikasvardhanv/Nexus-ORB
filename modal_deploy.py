@@ -1,7 +1,6 @@
-# modal_deploy.py - Cloud Proxy for Streamlit Backend
+# modal_deploy.py - Cloud Proxy for Nexus-ORB Core
 import modal
 import os
-import sys
 import subprocess
 
 # Define the image with all dependencies
@@ -9,16 +8,17 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("curl", "libpq-dev", "build-essential")
     .pip_install(
-        "streamlit",
+        "fastapi",
+        "uvicorn",
         "alpaca-py",
+        "pybit",
         "pandas",
         "numpy",
         "python-dotenv",
-        "plotly",
         "requests"
     )
-    .add_local_dir("/Users/vikashvardhan/IdeaProjects/ProjectNexusAI/orb_deploy", remote_path="/root/orb_deploy")
-    .add_local_dir("/Users/vikashvardhan/IdeaProjects/ProjectNexusAI/execution", remote_path="/root/execution")
+    # We mount the current project files into the cloud container
+    .add_local_python_source("api", "execution")
 )
 
 app = modal.App("nexus-orb-trader")
@@ -27,14 +27,12 @@ app = modal.App("nexus-orb-trader")
     image=image,
     timeout=3600
 )
-@modal.web_server(8501)
-def run_streamlit():
-    # Start streamlit in the background and let it run
-    # Note: modal.web_server expects the process to keep running
-    subprocess.Popen([
-        "streamlit", "run", "/root/orb_deploy/app.py", 
-        "--server.port=8501", 
-        "--server.address=0.0.0.0",
-        "--server.enableCORS=false",
-        "--server.enableXsrfProtection=false"
-    ])
+@modal.web_server(8000)
+def run_bridge_api():
+    """
+    Launches the FastAPI bridge in the cloud.
+    Allows your React dashboard to connect and execute trades remotely.
+    """
+    from api import app as fastapi_app
+    import uvicorn
+    uvicorn.run(fastapi_app, host="0.0.0.0", port=8000)
