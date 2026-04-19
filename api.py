@@ -16,6 +16,11 @@ from pathlib import Path
 
 app = FastAPI(title="Nexus-ORB Bridge API")
 
+@app.get("/status")
+def status():
+    return {"status": "online", "version": "1.1.0"}
+
+
 # Enable CORS for the React frontend
 @app.middleware("http")
 async def manual_cors(request, call_next):
@@ -27,11 +32,17 @@ async def manual_cors(request, call_next):
         response.headers["Access-Control-Allow-Headers"] = "*"
         return response
     
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content={"error": str(e)}, status_code=500)
+
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -196,7 +207,8 @@ def validate_creds(config: TradeConfig):
                 "APCA-API-KEY-ID": key_id,
                 "APCA-API-SECRET-KEY": secret
             }
-            res = requests.get(url, headers=headers)
+            res = requests.get(url, headers=headers, timeout=10)
+
 
             if res.status_code == 200:
                 return res.json()
